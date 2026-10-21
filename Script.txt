@@ -1,1 +1,579 @@
+-- autofarm
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
 
+local localPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait() and Players.LocalPlayer
+local whitelist = {["EliasHdz2920"] = true, ["otamuraiotaku60"] = true,["elfino300021"]=true,}
+
+local playerName = localPlayer.Name
+while playerName == "" or not playerName do 
+    task.wait(0.1) 
+    playerName = localPlayer.Name 
+end
+
+if not whitelist[playerName] then
+    local screenGui = Instance.new("ScreenGui", localPlayer:WaitForChild("PlayerGui"))
+    screenGui.Name = "ACCESO_DENEGADO"
+    screenGui.DisplayOrder = 999
+    
+    local background = Instance.new("Frame", screenGui)
+    background.Size = UDim2.new(1, 0, 1, 0)
+    background.BackgroundColor3 = Color3.new(0, 0, 0)
+    background.BackgroundTransparency = 1
+    
+    local frame = Instance.new("Frame", screenGui)
+    frame.Size = UDim2.new(0, 0, 0, 0)
+    frame.Position = UDim2.new(0.5, 0, 0.5, 0)
+    frame.AnchorPoint = Vector2.new(0.5, 0.5)
+    frame.BackgroundColor3 = Color3.fromRGB(15, 0, 0)
+    frame.BorderColor3 = Color3.fromRGB(255, 0, 0)
+    frame.BorderSizePixel = 2
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 12)
+    
+    local icon = Instance.new("TextLabel", frame)
+    icon.Size = UDim2.new(1, 0, 0, 50)
+    icon.Position = UDim2.new(0, 0, 0, 10)
+    icon.BackgroundTransparency = 1
+    icon.Text = "⛔"
+    icon.TextColor3 = Color3.fromRGB(255, 50, 50)
+    icon.Font = Enum.Font.GothamBold
+    icon.TextSize = 42
+    icon.TextTransparency = 1
+    
+    local title = Instance.new("TextLabel", frame)
+    title.Size = UDim2.new(1, -20, 0, 30)
+    title.Position = UDim2.new(0, 10, 0, 65)
+    title.BackgroundTransparency = 1
+    title.Text = "ACCESO DENEGADO"
+    title.TextColor3 = Color3.fromRGB(255, 40, 40)
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 20
+    title.TextTransparency = 1
+    
+    local message = Instance.new("TextLabel", frame)
+    message.Size = UDim2.new(1, -20, 0, 40)
+    message.Position = UDim2.new(0, 10, 0, 100)
+    message.BackgroundTransparency = 1
+    message.Text = "No tienes permiso para usar\neste script."
+    message.TextColor3 = Color3.fromRGB(220, 220, 220)
+    message.Font = Enum.Font.Gotham
+    message.TextSize = 14
+    message.TextTransparency = 1
+    
+    TweenService:Create(background, TweenInfo.new(0.4), {BackgroundTransparency = 0.4}):Play()
+    TweenService:Create(frame, TweenInfo.new(0.6, Enum.EasingStyle.Back), {Size = UDim2.new(0, 320, 0, 180)}):Play()
+    
+    task.delay(0.25, function()
+        TweenService:Create(icon, TweenInfo.new(0.3), {TextTransparency = 0}):Play()
+        TweenService:Create(title, TweenInfo.new(0.3), {TextTransparency = 0}):Play()
+        TweenService:Create(message, TweenInfo.new(0.3), {TextTransparency = 0}):Play()
+    end)
+    
+    task.delay(7, function() 
+        screenGui:Destroy() 
+    end)
+    return
+end
+ local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local VirtualUser = game:GetService("VirtualUser")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local MAX_COINS_PER_ROUND = 50
+
+-- Sistema de Auto-Rejoin y persistencia de ON en Teleport
+local autoExecKey = "MM2_AutoFarm_State"
+local savedState = false
+pcall(function()
+    if syn and syn.get_genv then
+        local genv = syn.get_genv()
+        if genv[autoExecKey] ~= nil then
+            savedState = genv[autoExecKey]
+            genv[autoExecKey] = nil
+        end
+    end
+end)
+
+local enabled = savedState
+local afkActive = true
+local coinsCollected = 0
+local finishedCurrentRound = false
+local safePart = nil
+
+-- Auto Rejoin si el cliente es expulsado o desconectado
+local coreGui = game:GetService("CoreGui")
+task.spawn(function()
+    repeat task.wait(1) until coreGui:FindFirstChild("RobloxPromptGui") or coreGui:FindFirstChild("ErrorPrompt")
+    pcall(function()
+        if syn and syn.get_genv then
+            syn.get_genv()[autoExecKey] = true
+        end
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, player)
+    end)
+end)
+
+-- Prevención de Inactividad (Anti-AFK)
+player.Idled:Connect(function()
+    VirtualUser:Button2Down(Vector2.new(0, 0), Workspace.CurrentCamera.CFrame)
+    task.wait(1)
+    VirtualUser:Button2Up(Vector2.new(0, 0), Workspace.CurrentCamera.CFrame)
+end)
+
+local function doAntiAFKMovement()
+    VirtualUser:Button1Down(Vector2.new(0, 0), Workspace.CurrentCamera.CFrame)
+    task.wait(0.1)
+    VirtualUser:Button1Up(Vector2.new(0, 0), Workspace.CurrentCamera.CFrame)
+    
+    local char = player.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.Jump = true
+    end
+end
+
+-- Interfaz Gráfica (Estilo Amarillo Pastel con tamaño fijo y esquinas redondeadas)
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "AutoFarmUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.DisplayOrder = 999
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = playerGui
+
+local Main = Instance.new("Frame")
+Main.Name = "Main"
+Main.Size = UDim2.new(0, 220, 0, 92)
+Main.AnchorPoint = Vector2.new(0.5, 0.5)
+Main.Position = UDim2.new(0.5, 0, 0.5, 0)
+Main.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+Main.BorderSizePixel = 0
+Main.Parent = ScreenGui
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 14)
+MainCorner.Parent = Main
+
+local MainBg = Instance.new("Frame")
+MainBg.Name = "Bg"
+MainBg.Size = UDim2.new(1, 0, 1, 0)
+MainBg.ZIndex = 0
+MainBg.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+MainBg.BorderSizePixel = 0
+MainBg.Parent = Main
+
+local MainBgCorner = Instance.new("UICorner")
+MainBgCorner.CornerRadius = UDim.new(0, 14)
+MainBgCorner.Parent = MainBg
+
+local MainGradient = Instance.new("UIGradient")
+MainGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 253, 235)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 245, 205)),
+})
+MainGradient.Rotation = 90
+MainGradient.Parent = MainBg
+
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Color = Color3.fromRGB(255, 220, 130)
+MainStroke.Thickness = 2
+MainStroke.Transparency = 0.1
+MainStroke.Parent = Main
+
+local Header = Instance.new("Frame")
+Header.Name = "Header"
+Header.Size = UDim2.new(1, 0, 0, 34)
+Header.BackgroundTransparency = 1
+Header.Parent = Main
+
+local Dot = Instance.new("Frame")
+Dot.Size = UDim2.new(0, 8, 0, 8)
+Dot.Position = UDim2.new(0, 14, 0.5, -4)
+Dot.BackgroundColor3 = Color3.fromRGB(255, 195, 75)
+Dot.BorderSizePixel = 0
+Dot.Parent = Header
+
+local DotCorner = Instance.new("UICorner")
+DotCorner.CornerRadius = UDim.new(1, 4)
+DotCorner.Parent = Dot
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(0, 140, 1, 0)
+Title.Position = UDim2.new(0, 28, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "✨ Coin Farm"
+Title.TextColor3 = Color3.fromRGB(130, 95, 30)
+Title.Font = Enum.Font.FredokaOne
+Title.TextSize = 13
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = Header
+
+local MinBtn = Instance.new("TextButton")
+MinBtn.Size = UDim2.new(0, 22, 0, 22)
+MinBtn.Position = UDim2.new(1, -30, 0.5, -11)
+MinBtn.BackgroundColor3 = Color3.fromRGB(255, 238, 175)
+MinBtn.BackgroundTransparency = 0.2
+MinBtn.Text = "−"
+MinBtn.TextColor3 = Color3.fromRGB(150, 110, 40)
+MinBtn.Font = Enum.Font.FredokaOne
+MinBtn.TextSize = 18
+MinBtn.AutoButtonColor = false
+MinBtn.Parent = Header
+
+local MinCorner = Instance.new("UICorner")
+MinCorner.CornerRadius = UDim.new(1, 11)
+MinCorner.Parent = MinBtn
+
+MinBtn.MouseEnter:Connect(function()
+    TweenService:Create(MinBtn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(255, 210, 100)}):Play()
+    TweenService:Create(MinBtn, TweenInfo.new(0.12), {TextColor3 = Color3.fromRGB(255, 255, 255)}):Play()
+end)
+MinBtn.MouseLeave:Connect(function()
+    TweenService:Create(MinBtn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(255, 238, 175)}):Play()
+    TweenService:Create(MinBtn, TweenInfo.new(0.12), {TextColor3 = Color3.fromRGB(150, 110, 40)}):Play()
+end)
+
+local Row1 = Instance.new("Frame")
+Row1.Size = UDim2.new(1, -20, 0, 42)
+Row1.Position = UDim2.new(0, 10, 0, 40)
+Row1.BackgroundColor3 = Color3.fromRGB(255, 250, 220)
+Row1.BackgroundTransparency = 0.1
+Row1.BorderSizePixel = 0
+Row1.Parent = Main
+
+local Row1Corner = Instance.new("UICorner")
+Row1Corner.CornerRadius = UDim.new(0, 10)
+Row1Corner.Parent = Row1
+
+local Row1Label = Instance.new("TextLabel")
+Row1Label.Size = UDim2.new(1, -70, 1, 0)
+Row1Label.Position = UDim2.new(0, 12, 0, 0)
+Row1Label.BackgroundTransparency = 1
+Row1Label.Text = "Auto Farm"
+Row1Label.TextColor3 = Color3.fromRGB(120, 90, 35)
+Row1Label.Font = Enum.Font.FredokaOne
+Row1Label.TextSize = 13
+Row1Label.TextXAlignment = Enum.TextXAlignment.Left
+Row1Label.Parent = Row1
+
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Size = UDim2.new(0, 40, 0, 22)
+ToggleBtn.Position = UDim2.new(1, -50, 0.5, -11)
+ToggleBtn.BackgroundColor3 = enabled and Color3.fromRGB(255, 195, 75) or Color3.fromRGB(235, 220, 185)
+ToggleBtn.Text = ""
+ToggleBtn.BorderSizePixel = 0
+ToggleBtn.AutoButtonColor = false
+ToggleBtn.Parent = Row1
+
+local ToggleCorner = Instance.new("UICorner")
+ToggleCorner.CornerRadius = UDim.new(1, 11)
+ToggleCorner.Parent = ToggleBtn
+
+local Knob = Instance.new("Frame")
+Knob.Size = UDim2.new(0, 16, 0, 16)
+Knob.Position = enabled and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
+Knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+Knob.BorderSizePixel = 0
+Knob.Parent = ToggleBtn
+
+local KnobCorner = Instance.new("UICorner")
+KnobCorner.CornerRadius = UDim.new(1, 8)
+KnobCorner.Parent = Knob
+
+local MinBar = Instance.new("Frame")
+MinBar.Name = "MinBar"
+MinBar.Size = UDim2.new(0, 120, 0, 36)
+MinBar.AnchorPoint = Vector2.new(0.5, 0.5)
+MinBar.Position = UDim2.new(0.5, 0, 0.5, 0)
+MinBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+MinBar.BorderSizePixel = 0
+MinBar.Active = true
+MinBar.Visible = false
+MinBar.Parent = ScreenGui
+
+local MinBarCorner = Instance.new("UICorner")
+MinBarCorner.CornerRadius = UDim.new(0, 10)
+MinBarCorner.Parent = MinBar
+
+local MinBarBg = Instance.new("Frame")
+MinBarBg.Name = "Bg"
+MinBarBg.Size = UDim2.new(1, 0, 1, 0)
+MinBarBg.ZIndex = 0
+MinBarBg.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+MinBarBg.BorderSizePixel = 0
+MinBarBg.Parent = MinBar
+
+local MinBarBgCorner = Instance.new("UICorner")
+MinBarBgCorner.CornerRadius = UDim.new(0, 10)
+MinBarBgCorner.Parent = MinBarBg
+
+local MinBarGradient = Instance.new("UIGradient")
+MinBarGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 253, 235)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 245, 205)),
+})
+MinBarGradient.Rotation = 90
+MinBarGradient.Parent = MinBarBg
+
+local MinBarStroke = Instance.new("UIStroke")
+MinBarStroke.Color = Color3.fromRGB(255, 220, 130)
+MinBarStroke.Thickness = 2
+MinBarStroke.Transparency = 0.1
+MinBarStroke.Parent = MinBar
+
+local MinBarDot = Instance.new("Frame")
+MinBarDot.Size = UDim2.new(0, 8, 0, 8)
+MinBarDot.Position = UDim2.new(0, 14, 0.5, -4)
+MinBarDot.BackgroundColor3 = Color3.fromRGB(255, 195, 75)
+MinBarDot.BorderSizePixel = 0
+MinBarDot.Parent = MinBar
+
+local MinBarDotCorner = Instance.new("UICorner")
+MinBarDotCorner.CornerRadius = UDim.new(1, 4)
+MinBarDotCorner.Parent = MinBarDot
+
+local MinBarLabel = Instance.new("TextLabel")
+MinBarLabel.Size = UDim2.new(1, -28, 1, 0)
+MinBarLabel.Position = UDim2.new(0, 28, 0, 0)
+MinBarLabel.BackgroundTransparency = 1
+MinBarLabel.Text = "✨ Farm"
+MinBarLabel.TextColor3 = Color3.fromRGB(130, 95, 30)
+MinBarLabel.Font = Enum.Font.FredokaOne
+MinBarLabel.TextSize = 13
+MinBarLabel.TextXAlignment = Enum.TextXAlignment.Left
+MinBarLabel.Parent = MinBar
+
+local guiBusy = false
+
+local function minimizeGui()
+    if guiBusy then return end
+    guiBusy = true
+    Main.Visible = false
+    MinBar.Position = Main.Position
+    MinBar.Visible = true
+    guiBusy = false
+end
+
+local function restoreGui()
+    if guiBusy then return end
+    guiBusy = true
+    MinBar.Visible = false
+    Main.Position = MinBar.Position
+    Main.Visible = true
+    guiBusy = false
+end
+
+local function createBaseplate()
+    if not safePart or not safePart.Parent then
+        safePart = Instance.new("Part")
+        safePart.Size = Vector3.new(25, 1, 25)
+        safePart.Position = Vector3.new(0, 600, 0)
+        safePart.Anchored = true
+        safePart.Transparency = 0.4
+        safePart.BrickColor = BrickColor.new("Pastel yellow")
+        safePart.Name = "SafeBaseplate"
+        safePart.Parent = Workspace
+    end
+end
+
+local function removeBaseplate()
+    if safePart then
+        safePart:Destroy()
+        safePart = nil
+    end
+end
+
+local function normalTeleport(targetCFrame)
+    local char = player.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        char.HumanoidRootPart.CFrame = targetCFrame
+    end
+end
+
+local function weirdJumpTeleport(targetCFrame)
+    local char = player.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        local hrp = char.HumanoidRootPart
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        
+        local randomAngle = math.rad(math.random(0, 360))
+        hrp.CFrame = targetCFrame * CFrame.Angles(0, randomAngle, math.rad(math.random(-20, 20)))
+        
+        if hum then
+            for i = 1, 3 do
+                hum.Jump = true
+                hrp.Velocity = Vector3.new(math.random(-8, 8), math.random(10, 18), math.random(-8, 8))
+                task.wait(0.2)
+            end
+        end
+        
+        hrp.CFrame = targetCFrame
+    end
+end
+
+local function getCoinContainer()
+    if Workspace:FindFirstChild("CoinContainer") then
+        return Workspace.CoinContainer
+    end
+    for _, child in ipairs(Workspace:GetChildren()) do
+        if child:FindFirstChild("CoinContainer") then
+            return child.CoinContainer
+        end
+    end
+    return nil
+end
+
+local function isRoundActive()
+    local coinContainer = getCoinContainer()
+    if coinContainer and #coinContainer:GetChildren() > 0 then
+        return true
+    end
+    return false
+end
+
+ToggleBtn.MouseButton1Click:Connect(function()
+    enabled = not enabled
+    local goalPos = enabled and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
+    local goalBg = enabled and Color3.fromRGB(255, 195, 75) or Color3.fromRGB(235, 220, 185)
+    TweenService:Create(ToggleBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {BackgroundColor3 = goalBg}):Play()
+    TweenService:Create(Knob, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {Position = goalPos}):Play()
+
+    if enabled then
+        coinsCollected = 0
+        finishedCurrentRound = false
+    else
+        removeBaseplate()
+    end
+end)
+
+MinBtn.MouseButton1Click:Connect(function()
+    task.spawn(minimizeGui)
+end)
+
+-- Bucle de recolección optimizado
+task.spawn(function()
+    while true do
+        task.wait(0.6)
+        
+        if enabled then
+            local char = player.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            
+            if not isRoundActive() or finishedCurrentRound then
+                if not isRoundActive() then
+                    coinsCollected = 0
+                    finishedCurrentRound = false
+                end
+                removeBaseplate()
+                doAntiAFKMovement()
+                task.wait(2.5)
+                continue
+            end
+
+            if not char or not hum or hum.Health <= 0 then
+                task.wait(1.0)
+                continue
+            end
+
+            createBaseplate()
+            local safeCFrame = CFrame.new(safePart.Position + Vector3.new(0, 3, 0))
+            
+            normalTeleport(safeCFrame)
+            task.wait(1.2)
+
+            local coinContainer = getCoinContainer()
+            
+            if coinContainer then
+                for _, coin in ipairs(coinContainer:GetChildren()) do
+                    if not enabled or not isRoundActive() or hum.Health <= 0 or finishedCurrentRound then
+                        break
+                    end
+
+                    local coinPart = coin:IsA("BasePart") and coin or coin:FindFirstChild("CoinVisual") or coin:FindFirstChild("Hitbox")
+                    
+                    if coinPart and coinPart:IsA("BasePart") and coinPart.Parent then
+                        
+                        -- Si ya supera o llega a 53 monedas, simplemente se queda en el mapa y termina la ronda para el script
+                        if coinsCollected >= 53 then
+                            finishedCurrentRound = true
+                            removeBaseplate()
+                            break
+                        end
+
+                        weirdJumpTeleport(coinPart.CFrame + Vector3.new(0, 1, 0))
+                        
+                        task.wait(0.5)
+                        coinsCollected = coinsCollected + 1
+                        
+                        if coinsCollected >= 53 then
+                            finishedCurrentRound = true
+                            
+                            if coin and coin.Parent then
+                                coin:Destroy()
+                            end
+                            
+                            removeBaseplate()
+                            break
+                        end
+                        
+                        if not finishedCurrentRound and enabled then
+                            normalTeleport(safeCFrame)
+                            task.wait(1.8)
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+local dragging, dragStart, startPos = false, nil, nil
+Header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = Main.Position
+    end
+end)
+Header.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+local mDragging, mDragStart, mStartPos = false, nil, nil
+MinBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        mDragging = true
+        mDragStart = input.Position
+        mStartPos = MinBar.Position
+    end
+end)
+MinBar.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        if mDragging and mDragStart then
+            local delta = input.Position - mDragStart
+            if delta.Magnitude < 8 then
+                task.spawn(restoreGui)
+            end
+        end
+        mDragging = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+    if mDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - mDragStart
+        MinBar.Position = UDim2.new(mStartPos.X.Scale, mStartPos.X.Offset + delta.X, mStartPos.Y.Scale, mStartPos.Y.Offset + delta.Y)
+    end
+end)
